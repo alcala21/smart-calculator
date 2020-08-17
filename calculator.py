@@ -35,13 +35,16 @@ def perform_operation(x_list):
 
 
 def calculate_list(x_list):
-    if len(x_list) == 3:
-        return perform_operation(x_list)
-    elif len(x_list) == 1:
-        return int(x_list[0])
-    p_val = perform_operation(x_list[:3])
-    new_list = [p_val] + x_list[3:]
-    return calculate_list(new_list)
+    try:
+        if len(x_list) == 3:
+            return perform_operation(x_list)
+        elif len(x_list) == 1:
+            return int(x_list[0])
+        p_val = perform_operation(x_list[:3])
+        new_list = [p_val] + x_list[3:]
+        return calculate_list(new_list)
+    except TypeError:
+        raise ValueError
 
 
 while True:
@@ -52,8 +55,10 @@ while True:
             break
         elif elems[0] == '/help':
             print("The program performs addition and subtraction of integers")
+        elif len(elems[0]) > 0 and elems[0][0] == '/':
+            print("Unknown command")
         elif elems[0] != '':
             chars = [extract_character(x) for x in elems]
             print(calculate_list(chars))
     except ValueError:
-        pass
+        print("Invalid expression")
