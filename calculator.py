@@ -26,17 +26,88 @@ class InvalidAssignment(Exception):
     pass
 
 
-def get_sign(signs):
-    if len(signs) == 1:
-        return signs
-    sign = "+" if signs[0] == signs[1] else "-"
-    if len(signs) == 2:
-        return sign
-    new_signs = sign + signs[2:]
-    return get_sign(new_signs)
+def extract_characters(x, char_list):
+    if len(x) == 0:
+        return char_list
+    c = x[0]
+    out_s = x[1:]
+    size = len(char_list)
+    if c == '+':
+        if size > 0:
+            if char_list[-1] == '-':
+                char_list[-1] = '-'
+            elif char_list[-1] == '+':
+                char_list[-1] = '+'
+            else:
+                char_list.append(c)
+    elif c == '-':
+        if size > 0:
+            if char_list[-1] == "-":
+                char_list[-1] = "+"
+            elif char_list[-1] == "+":
+                char_list[-1] = "-"
+            else:
+                char_list.append("-")
+        else:
+            char_list.append(c)
+    elif c.isdigit():
+        if size > 0:
+            if char_list[-1] == '-':
+                if size == 1:
+                    char_list[-1] = char_list[-1] + c
+                else:
+                    char_list.append(c)
+            elif char_list[-1] in "+*/(^":
+                char_list.append(c)
+            elif char_list[-1][-1].isdigit():
+                char_list[-1] = char_list[-1] + c
+            else:
+                raise InvalidIdentifier
+        else:
+            char_list.append(c)
+    elif c.isalpha():
+        if size > 0:
+            if char_list[-1] in '+-*/()':
+                char_list.append(c)
+            elif char_list[-1].isalpha():
+                char_list[-1] = char_list[-1] + c
+            else:
+                raise InvalidIdentifier
+        else:
+            char_list.append(c)
+
+    elif c in "^*/":
+        if size > 0:
+            if char_list[-1] not in '*/(':
+                char_list.append(c)
+            else:
+                raise InvalidExpression
+        else:
+            char_list.append(c)
+
+    elif c == '(':
+        if size > 0:
+            if char_list[-1].isalpha():
+                raise InvalidExpression
+            else:
+                char_list.append(c)
+        else:
+            char_list.append(c)
+    elif c == ')':
+        if size > 0:
+            if char_list[-1] in '+-*/':
+                raise InvalidExpression
+            elif char_list[-1] == '(':
+                del char_list[-1]
+            else:
+                char_list.append(c)
+        else:
+            raise InvalidExpression
+
+    return extract_characters(out_s, char_list)
 
 
-def extract_character(x, v_dict):
+def eval_character(x, v_dict):
     try:
         number = int(x)
         return number
@@ -45,8 +116,8 @@ def extract_character(x, v_dict):
             return v_dict[x]
         elif x.isalpha():
             raise UnknownVariable
-        elif not any([y not in '+-' for y in x]):
-            return get_sign(x)
+        elif x in '+-*/()^':
+            return x
         else:
             raise InvalidIdentifier
 
@@ -54,12 +125,19 @@ def extract_character(x, v_dict):
 def perform_operation(x_list):
     if x_list[1] == "+":
         return x_list[0] + x_list[2]
-    return x_list[0] - x_list[2]
+    elif x_list[1] == "-":
+        return x_list[0] - x_list[2]
+    elif x_list[1] == "*":
+        return x_list[0] * x_list[2]
+    elif x_list[1] == "/":
+        return x_list[0] // x_list[2]
+    elif x_list[1] == "^":
+        return x_list[0] ** x_list[2]
 
 
 def prepare_variables(x_list):
     if len(x_list) == 3:
-        if x_list[1] in "+-":
+        if x_list[1] in "+-*/^":
             return perform_operation(x_list)
         else:
             raise InvalidExpression
@@ -73,8 +151,24 @@ def calculate_list(x_list):
             return prepare_variables(x_list)
         elif len(x_list) == 1:
             return int(x_list[0])
-        p_val = prepare_variables(x_list[:3])
-        new_list = [p_val] + x_list[3:]
+        index = 1
+        if ')' in x_list:
+            r_index = x_list.index(')')
+            l_index = max(i for i in range(len(x_list[0:r_index]))
+                          if x_list[i] == '(')
+            p_list = x_list[l_index + 1: r_index]
+            p_val = calculate_list(p_list)
+            new_list = x_list[:l_index] + [p_val] + x_list[r_index + 1:]
+            return calculate_list(new_list)
+
+        if "^" in x_list:
+            index = x_list.index("^")
+        elif "*" in x_list:
+            index = x_list.index('*')
+        elif "/" in x_list:
+            index = x_list.index('/')
+        p_val = prepare_variables(x_list[index - 1:index + 2])
+        new_list = x_list[:index - 1] + [p_val] + x_list[index + 2:]
         return calculate_list(new_list)
     except Exception:
         raise InvalidExpression
@@ -111,7 +205,7 @@ def check_command(x):
 values = dict()
 
 while True:
-    elems = input().strip()
+    elems = input().replace(" ", "")
     try:
         if '=' in elems:
             assign_value(elems, values)
@@ -120,8 +214,8 @@ while True:
         elif elems in values:
             print(values[elems])
         elif elems != '':
-            elems = elems.split(" ")
-            chars = [extract_character(x, values) for x in elems]
+            e_chars = extract_characters(elems, [])
+            chars = [eval_character(x, values) for x in e_chars]
             print(calculate_list(chars))
     except BreakCommand:
         print("Bye!")
